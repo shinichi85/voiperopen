@@ -1,0 +1,34 @@
+#!/bin/sh
+
+FAXFILE=$1
+RECIPIENT=$2
+FAXSENDER=$3
+RECIPIENT2=$4
+FAXID=`date +%j%H%M%S.pdf`
+
+/usr/local/bin/tiff2pdf $FAXFILE &> /dev/null
+
+if [ $? -eq 0 ]
+then
+
+if [ "$RECIPIENT2" == "" ]
+then
+
+/usr/local/bin/tiff2pdf -p letter $FAXFILE | mime-construct --to $RECIPIENT --subject "Hai ricevuto un FAX dal numero: $FAXSENDER" --attachment $FAXID --type application/pdf --file -
+
+else
+
+/usr/local/bin/tiff2pdf -p letter $FAXFILE | mime-construct --to $RECIPIENT --cc $RECIPIENT2 --subject "Hai ricevuto un FAX dal numero: $FAXSENDER" --attachment $FAXID --type application/pdf --file -
+
+fi
+
+
+echo "La email e' stata inviata correttamente."
+
+else
+
+echo "Ci sono degli errori, la email non e' stata spedita."
+
+fi
+
+exit 0

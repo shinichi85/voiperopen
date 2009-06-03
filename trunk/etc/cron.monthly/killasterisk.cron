@@ -1,0 +1,12 @@
+#!/bin/sh
+
+if pgrep asterisk > /dev/null 2>&1
+then
+	/bin/kill -SIGKILL `cat /var/run/asterisk/asterisk.pid` || true
+fi
+
+if pgrep argus > /dev/null 2>&1
+then
+	/etc/init.d/argusd restart > /dev/null 2>&1
+fi
+				

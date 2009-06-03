@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if pgrep asterisk > /dev/null 2>&1
+then
+
+	/usr/sbin/asterisk -rx 'database deltree CTICALLS' > /dev/null 2> /dev/null
+
+fi
+

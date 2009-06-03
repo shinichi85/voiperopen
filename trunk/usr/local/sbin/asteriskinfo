@@ -1,0 +1,36 @@
+#!/bin/sh
+clear
+echo " "
+echo "*** Version:"
+asterisk -r -x 'show version'
+echo " "
+echo "*** Uptime:"
+asterisk -r -x 'show uptime'
+echo " "
+echo "*** Active Sip channels:"
+asterisk -r -x 'sip show channels'
+echo " "
+echo "*** Sip Peers:"
+asterisk -r -x 'sip show peers'
+echo " "
+echo "*** Sip Registry:"
+asterisk -r -x 'sip show registry'
+echo " "
+echo "*** Iax2 SIP Registry:"
+asterisk -r -x 'iax2 show registry'
+echo " "
+echo "*** Iax2 Peers:"
+asterisk -r -x 'iax2 show peers'
+echo " "
+echo "*** Zaptel driver info:"
+asterisk -r -x 'zap show channels'
+echo " "
+echo "*** Conference Info :"
+asterisk -r -x 'meetme'
+echo " "
+echo "*** Voicemail Users "
+asterisk -r -x 'show voicemail users'
+echo " "
+echo "*** NTP Peers "
+ntpq -p
+echo " "  

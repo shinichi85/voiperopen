@@ -1,0 +1,3 @@
+#!/bin/sh
+
+find /var/spool/asterisk/fax -type f -mtime +15 -name "*.*" -exec rm -f {} \;

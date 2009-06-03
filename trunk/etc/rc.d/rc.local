@@ -1,0 +1,35 @@
+#!/bin/sh
+
+touch /var/lock/subsys/local
+
+#################################################
+#           Voiper PBX by SpheraIT.it           #
+#################################################
+
+### MOUNT AND FORMAT RAM DISK ###################
+
+# /sbin/mke2fs -q -b 1024 -m 0 /dev/ram0
+# /bin/mount /dev/ram0 /mnt/Ramdisk
+
+### VOIPER SERIAL GENERATOR #####################
+
+/usr/local/sbin/voiperserial > /dev/null 2>&1
+
+### VOIPER CORE STARTUP #########################
+
+/usr/sbin/voiper start
+
+### ASTERISK VERSION GENERATOR ##################
+
+/usr/sbin/asterisk -V > /etc/ver_asterisk
+
+### ZAPTEL VERSION GENERATOR ####################
+
+/sbin/modinfo -F version zaptel > /etc/ver_zaptel
+
+### LIBPRI VERSION GENERATOR ####################
+
+/usr/bin/strings /usr/lib/libpri.so | grep 1.4 | tail -1 > /etc/ver_libpri
+
+##################### XaD #######################
+

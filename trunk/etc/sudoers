@@ -1,0 +1,67 @@
+# sudoers file.
+#
+# This file MUST be edited with the 'visudo' command as root.
+#
+# See the sudoers man page for the details on how to write a sudoers file.
+#
+
+# Host alias specification
+
+# User alias specification
+
+# Cmnd alias specification
+
+# Defaults specification
+
+# User privilege specification
+root		ALL=(ALL) ALL
+apache          ALL=(ALL) ALL
+
+# Uncomment to allow people in group wheel to run all commands
+#%wheel		ALL=(ALL) ALL
+#%apache	ALL=(ALL) ALL
+#%root		ALL=(ALL) ALL
+
+
+# Same thing without a password
+asterisk  ALL = NOPASSWD: /sbin/service asterisk restart
+asterisk  ALL = NOPASSWD: /tmp/install
+asterisk  ALL = NOPASSWD: /var/www/html/private/fwmail/retrieve_fwmail.pl
+asterisk  ALL = NOPASSWD: /var/www/html/private/smtpconfig/retrieve_smtpconfig.pl
+asterisk  ALL = NOPASSWD: /var/www/html/private/smtpconfig/smtpconfig.sh
+asterisk  ALL = NOPASSWD: /sbin/service ddclient start, /sbin/chkconfig --level 2345 ddclient on
+asterisk  ALL = NOPASSWD: /sbin/service ddclient stop, /sbin/chkconfig --level 2345 ddclient off
+asterisk  ALL = NOPASSWD: /sbin/shutdown
+asterisk  ALL = NOPASSWD: /bin/mv
+asterisk  ALL = NOPASSWD: /sbin/service dhcpd start, /sbin/chkconfig --level 2345 dhcpd on
+asterisk  ALL = NOPASSWD: /sbin/service dhcpd stop, /sbin/chkconfig --level 2345 dhcpd off
+asterisk  ALL = NOPASSWD: /bin/df
+asterisk  ALL = NOPASSWD: /bin/unlink
+asterisk  ALL = NOPASSWD: /bin/ln
+asterisk  ALL = NOPASSWD: /sbin/service snmpd start, /sbin/chkconfig --level 2345 snmpd on
+asterisk  ALL = NOPASSWD: /sbin/service snmpd stop, /sbin/chkconfig --level 2345 snmpd off
+asterisk  ALL = NOPASSWD: /sbin/chkconfig --level 2345 tftp on
+asterisk  ALL = NOPASSWD: /sbin/chkconfig --level 2345 tftp off
+asterisk  ALL = NOPASSWD: /sbin/service ntpd start, /sbin/chkconfig --level 2345 ntpd on
+asterisk  ALL = NOPASSWD: /sbin/service ntpd stop, /sbin/chkconfig --level 2345 ntpd off
+asterisk  ALL = NOPASSWD: /sbin/service vsftpd start, /sbin/chkconfig --level 2345 vsftpd on
+asterisk  ALL = NOPASSWD: /sbin/service vsftpd stop, /sbin/chkconfig --level 2345 vsftpd off
+asterisk  ALL = NOPASSWD: /sbin/service argusd start, /sbin/chkconfig --level 2345 argusd on
+asterisk  ALL = NOPASSWD: /sbin/service argusd stop, /sbin/chkconfig --level 2345 argusd off
+asterisk  ALL = NOPASSWD: /sbin/service webmin start, /sbin/chkconfig --level 2345 webmin on
+asterisk  ALL = NOPASSWD: /sbin/service webmin stop, /sbin/chkconfig --level 2345 webmin off
+asterisk  ALL = NOPASSWD: /var/www/html/private/networkconfig/networkconfig.sh
+asterisk  ALL = NOPASSWD: /var/www/html/private/snmpdconfig/snmpdconfig.sh
+asterisk  ALL = NOPASSWD: /sbin/service sshd start, /sbin/chkconfig --level 2345 sshd on
+asterisk  ALL = NOPASSWD: /sbin/service sshd stop, /sbin/chkconfig --level 2345 sshd off
+asterisk  ALL = NOPASSWD: /var/www/html/private/scripts/sshd-root_disabled.sh
+asterisk  ALL = NOPASSWD: /var/www/html/private/scripts/sshd-root_enabled.sh
+asterisk  ALL = NOPASSWD: /bin/tar
+asterisk  ALL = NOPASSWD: /bin/rm
+asterisk  ALL = NOPASSWD: /sbin/service network reload
+asterisk  ALL = NOPASSWD: /sbin/service bi4sftpd restart, /sbin/chkconfig --level 2345 bi4sftpd on
+asterisk  ALL = NOPASSWD: /sbin/service bi4sftpd stop, /sbin/chkconfig --level 2345 bi4sftpd off
+
+# Samples
+# %users  ALL=/sbin/mount /cdrom,/sbin/umount /cdrom
+

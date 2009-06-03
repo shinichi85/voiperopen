@@ -1,0 +1,245 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Pod::Usage;
+use Algorithm::Verhoeff;
+
+use constant VERSION    => '1.0.0';
+
+my $serial_file         = '/etc/voiper_serial';
+my $product_number_file = '/etc/voiper_pn';
+
+
+# parse command line options
+my $help_opt    = undef;
+my $version_opt = undef;
+
+my $parser = new Getopt::Long::Parser( config => ['bundling'] );
+$parser->getoptions(
+    'help'     => \$help_opt,
+    'version'  => \$version_opt
+);
+
+if ($help_opt) {
+    pod2usage(2);
+}
+
+if ($version_opt) {
+    print VERSION."\n";
+    exit(0);
+}
+
+# product number handling
+my $product_number = '0000';
+
+if ( -e $product_number_file ) {
+    if ( open( PNFILE, "<$product_number_file" ) ) {
+        my $pn = <PNFILE>;
+        close(PNFILE);
+
+        chomp($pn);
+
+        if ( length($pn) == 4 ) {
+            $product_number = $pn;
+        } else {
+            print "Product number $pn is incorrect\n";
+            exit(1);
+        }
+
+    } else {
+        print "Unable to open product number file $product_number_file\n";
+        exit(1);
+    }
+} else {
+    print "Product number file $product_number_file does not exist\n";
+    exit(1);
+}
+
+# serial file handling
+if ( -e $serial_file ) {
+
+    # check serial
+    if ( open( SERIALFILE, "<$serial_file" ) ) {
+        my $serial = <SERIALFILE>;
+        close(SERIALFILE);
+
+        chomp($serial);
+
+        if ( $serial =~ /(\d{5})-(\d{5})-(\d{5})-(\d{5})/ ) {
+
+            if ( !verhoeff_check($1) ) {
+                print "Checksum error in block 1\n";
+                exit(1);
+            }
+
+            if ( !verhoeff_check($2) ) {
+                print "Checksum error in block 2\n";
+                exit(1);
+            }
+
+            if ( !verhoeff_check($3) ) {
+                print "Checksum error in block 3\n";
+                exit(1);
+            }
+
+            if ( !verhoeff_check($4) ) {
+                print "Checksum error in block 4\n";
+                exit(1);
+            }
+
+            if ( substr( $1, 0, 4 ) != $product_number ) {
+                print "Bad product number\n";
+                exit(1);
+            }
+
+            if ( substr( $2, 0, 2 ) != installation_hash() ) {
+                print "Bad installation hash\n";
+                exit(1);
+            }
+
+            print "$serial\n";
+
+        } else {
+            print "Wrong serial format\n";
+            exit(1);
+        }
+
+    } else {
+        print "Unable to open serial file $serial_file\n";
+        exit(1);
+    }
+
+} else {
+
+    # write serial file
+    if ( open( SERIALFILE, ">$serial_file" ) ) {
+        print SERIALFILE generate_serial($product_number);
+        print SERIALFILE "\n";
+        close(SERIALFILE);
+    } else {
+        print "Unable to open serial file $serial_file\n";
+        exit(1);
+    }
+}
+
+exit(0);
+
+sub generate_serial {
+
+    my ($product_number)  = @_;
+    my $installation_hash = installation_hash();
+    my $time_code         = time();
+
+    if (   length($product_number) == 4
+        && length($installation_hash) == 2
+        && length($time_code) == 10 )
+    {
+
+        my $raw_serial   = $product_number . $installation_hash . $time_code;
+        my @serial_chunk = undef;
+        $serial_chunk[0] = substr( $raw_serial, 0,  4 );
+        $serial_chunk[1] = substr( $raw_serial, 4,  4 );
+        $serial_chunk[2] = substr( $raw_serial, 8,  4 );
+        $serial_chunk[3] = substr( $raw_serial, 12, 4 );
+
+        my $serial = $serial_chunk[0];
+        $serial .= verhoeff_get( $serial_chunk[0] );
+        $serial .= '-';
+        $serial .= $serial_chunk[1];
+        $serial .= verhoeff_get( $serial_chunk[1] );
+        $serial .= '-';
+        $serial .= $serial_chunk[2];
+        $serial .= verhoeff_get( $serial_chunk[2] );
+        $serial .= '-';
+        $serial .= $serial_chunk[3];
+        $serial .= verhoeff_get( $serial_chunk[3] );
+
+        return $serial;
+    }
+
+    return undef;
+}
+
+sub installation_hash {
+    my $hash = undef;
+
+    # get system checksum
+    $hash = system_checksum();
+
+    # get network adapter checksum
+    my $interface = 'eth0';
+    $hash .= network_checksum($interface);
+
+    return $hash;
+}
+
+sub system_checksum {
+    my $system_checksum = 0;
+
+    my $cmd = '/usr/sbin/dmidecode';
+
+    open( CMDOUT, "$cmd |" );
+    while (<CMDOUT>) {
+        if (
+/UUID:\s+([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})/
+          )
+        {
+            $system_checksum = verhoeff_get( chrstr_to_numstr("$1") );
+        }
+    }
+    close(CMDOUT);
+
+    return $system_checksum;
+}
+
+sub network_checksum {
+    my ($interface) = @_;
+    my $network_checksum = 0;
+
+    my $cmd = '/sbin/ifconfig';
+
+    open( CMDOUT, "$cmd $interface |" );
+    while (<CMDOUT>) {
+        if (
+/HWaddr\s([0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2})/
+          )
+        {
+            $network_checksum = verhoeff_get( chrstr_to_numstr("$1") );
+        }
+    }
+    close(CMDOUT);
+
+    return $network_checksum;
+}
+
+sub chrstr_to_numstr {
+    my ($char_string) = @_;
+
+    my $num_string = undef;
+
+    my @chars = split( '', $char_string );
+    foreach my $char (@chars) {
+        $num_string .= ord($char);
+    }
+
+    return $num_string;
+}
+
+__END__
+
+=head1 NAME
+
+voiperserial - Voiper serial number generator
+
+=head1 SYNOPSIS
+
+voiperserial [options]
+
+Options:
+    
+    --help          Print help
+    --version       Print version
+
+=cut

@@ -1,0 +1,85 @@
+#!/bin/bash
+
+echo ""
+echo "#############################################################################################"
+echo "Questa procedura serve in caso di sostituzione HD in RAID Mirror (Voiper PRO)"
+echo ""
+echo "Collegare l'harddisk ancora funzionante sul canale PRIMARIO (SDA) e l'harddisk nuovo (VUOTO)"
+echo "delle STESSE dimensioni/settori/testine sul canale SECONDARIO (SDB)"
+echo ""
+echo "In caso di non corretta installazione c'e' il rischio di perdere tutti i dati"
+echo "#############################################################################################"
+
+echo ""
+echo ""
+echo ""
+echo "Si prega di controllare se gli harddisk collegati sono delle stesse dimensioni"
+echo "in caso contrario preme ctrl+c"
+echo ""
+
+fdisk -l
+
+echo ""
+echo ""
+
+read
+
+echo "###########################"
+echo "clone partizioni SDA -> SDB"
+echo "###########################"
+
+echo "premi invio per continuare o ctrl+c per interrompere"
+
+read
+
+sfdisk -d /dev/sda | sfdisk /dev/sdb --force
+
+echo ""
+
+echo "#######################"
+echo "ricostruzione array MD0"
+echo "#######################"
+
+echo "premi invio per continuare o ctrl+c per interrompere"
+echo ""
+echo ""
+echo "Ora verra creata la sincronizzazione dei dati del device MD0 (SDA > SDB)"
+echo "Quando il Recovery raggiunge il 100% la procedura sara' terminata"
+echo "per continuare con l'installazione PREMERE ctrl+c"
+read
+
+echo "SDB non presente nell'array"
+cat /proc/mdstat
+mdadm /dev/md0 -a /dev/sdb1
+watch cat /proc/mdstat
+echo ""
+echo "HDC aggiunto nell'array"
+cat /proc/mdstat
+
+echo ""
+
+echo "#############################"
+echo "configurazione priorita' swap"
+echo "#############################"
+
+echo "premi invio per continuare o ctrl+c per interrompere"
+
+read
+
+swapoff -a
+mkswap -v1 -L SWAP-sdb2 /dev/sdb2
+swapon -a
+
+echo ""
+
+echo "#######################"
+echo "inserimento MBR per HDC"
+echo "#######################"
+
+echo "premi invio per continuare o ctrl+c per interrmpere"
+
+grub --batch < /usr/sbin/mbrsdb.grub
+
+echo "Procedura terminata"
+echo ""
+

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+rm -f /tmp/sess_* > /dev/null 2>&1
+
