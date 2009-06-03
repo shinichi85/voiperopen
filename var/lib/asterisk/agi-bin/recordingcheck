@@ -1,0 +1,39 @@
+#!/usr/bin/php -q
+<?php
+
+define("AGIBIN_DIR", "/var/lib/asterisk/agi-bin");
+include(AGIBIN_DIR."/phpagi.php");
+
+$agi = new AGI();
+
+$r = $agi->get_variable("ARG4");
+if ($r["result"] == 0) {
+	$agi->verbose("Extension List not set -- nothing to do");
+	exit(1);
+}
+$extenlist = $r["data"];
+
+$agi->set_variable("RecEnable", "DISABLED"); //disable by default
+
+$list = explode("-",$extenlist);
+if(!empty($list)) {
+	foreach($list as $exten) {
+		$setting = $agi->database_get("RECORD-IN", $exten);
+			if ($setting["result"] == 0) {
+					$agi->verbose("No DB Entry $exten - Not recording");
+					exit(1);
+				}
+		if ($setting["data"] == "ENABLED") {
+			$agi->verbose("Recording enable for ".$exten);
+			$agi->set_variable("RecEnable", "ENABLED");
+		}
+	}
+} else {
+	$agi->verbose("Extension List is empty -- nothing to do");
+	exit(1);		
+}
+
+// we just exit with no changes to the variable.
+exit(0);
+
+?>

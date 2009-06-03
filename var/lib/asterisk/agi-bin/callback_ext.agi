@@ -1,0 +1,19 @@
+#!/bin/sh
+
+cbtrunk=$1
+num2call=$2
+callpath="/var/spool/asterisk/outgoing/"
+callfile=$callpath"call`date +%d%m%Y_%H%M%S`"
+
+sleep 1
+
+echo "Callerid: CallBackOnDemand <$num2call>"	>> $callfile
+echo "Channel: $cbtrunk/$num2call"        	>> $callfile
+echo "Context: callbackmacro"               	>> $callfile
+echo "Extension: s"	                  	>> $callfile
+echo "MaxRetries: 1"                    	>> $callfile
+echo "RetryTime: 10"                   		>> $callfile
+echo "WaitTime: 30"                   		>> $callfile
+echo "Priority: 1"                   		>> $callfile
+
+exit 0

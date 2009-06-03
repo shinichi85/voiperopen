@@ -1,0 +1,181 @@
+#!/usr/bin/perl -w
+
+#######################################################
+#################### PREFIX FILTER ####################
+#######################################################
+######### D.G.XAD 12/6/2006-07 (C) SPHERAIT.IT ########
+#######################################################
+
+use Asterisk::AGI;
+
+my $debug = 0;
+my $cidname;
+my $cidnum;
+my $rc;
+my $check_permission = 1;
+my $AGI              = new Asterisk::AGI;
+my %input            = $AGI->ReadParse();
+
+$AGI->setcallback( \&mycallback );
+
+if ( $debug >= 2 ) {
+    foreach $key ( keys %input ) {
+        debug( "$key = " . $input{$key}, 3 );
+    }
+}
+
+if ( $input{'calleridname'} ) {
+    $cidname = $input{'calleridname'};
+    $cidnum  = $input{'callerid'};
+    debug( "Caller ID name is '$cidname' number is '$cidnum'", 1 );
+} elsif ( $input{'callerid'} =~ /^\"(.*)\"\s+\<(\d+)-?(\d*)\>\s*$/ ) {
+    $cidname = $1;
+    $cidnum  = $2 . $3;
+    debug( "Caller ID name is '$cidname' number is '$cidnum'", 1 );
+} elsif ( $input{'callerid'} =~ /^(\d+)*$/ ) {
+    $cidname = $1;
+    $cidnum  = $1;
+    debug( "Caller ID name and number are '$cidnum'", 1 );
+} else {
+    $cidname = undef;
+    $cidnum  = undef;
+    debug( "Caller ID is not set", 1 );
+}
+
+MAIN:
+
+my $exttrunk       = $AGI->get_variable('ARG1');
+my $numerochiamato = $AGI->get_variable('ARG2');
+my $tecnology      = $AGI->get_variable( 'OUT_' . $exttrunk );
+my $permissionset  = $AGI->get_variable( 'OUTRIGHT_' . $exttrunk );
+my $accountcode    = $input{'accountcode'};
+my $outtrunkright  = $AGI->get_variable( 'OUTTRUNKRIGHT_' . $exttrunk );
+my $speeddialperm  = $AGI->get_variable('SPEEDDIALPERM');
+
+if ( defined($speeddialperm) ) { $outtrunkright = '0'; }
+if ( !defined($permissionset) ) { $permissionset = ''; }
+
+debug( "Permission set for this trunk: (" . $permissionset . ")", 1 );
+debug( "Permission of the caller: (" . $accountcode . ")",        1 );
+debug( "Permission trunk enabled: (" . $outtrunkright . ")",      1 );
+debug( "SpeedDial Override Permission: (" . $speeddialperm . ")", 1 );
+
+@permission = split( /\|/, $permissionset );
+
+debug( "Permission Array: @permission (" . @permission . ")", 1 );
+
+if ( @permission != 0 ) {
+
+    foreach my $key (@permission) {
+        if ( $accountcode =~ /^$key$/ ) {
+
+            debug( "Found ACCOUNTCODE (" . $accountcode . ")", 1 );
+            $check_permission = 1;
+            last;
+
+        } else {
+
+            debug( "Not Found ACCOUNTCODE (" . $accountcode . ")", 1 );
+            $check_permission = 0;
+
+        }
+    }
+
+}
+
+if ( $check_permission != 1 ) {
+
+    $AGI->set_variable( 'DIALSTATUS', 'NOPERMISSION' );
+    $AGI->set_priority("exit");
+
+}
+
+#   if ( $tecnology =~ /^ZAP/ or $tecnology =~ /^AMP:mISDN/ or $tecnology =~ /^AMP:CAPI/ ) {
+if ( $outtrunkright == "1" ) {
+
+    @noCall = split( /;/, $AGI->database_get( 'NOCALL', $cidnum ) );
+
+    if ( @noCall != 0 ) {
+
+        foreach my $cat (@noCall) {
+            if ( $numerochiamato =~ /^$cat/ ) {
+
+                debug( "Found NOCALL (" . $cat . ")", 1 );
+                $check_call_nocall = 1;
+                last;
+
+            } else {
+
+                debug( "Not Found NOCALL (" . $cat . ")", 1 );
+                $check_call_nocall = 0;
+
+            }
+        }
+
+    } else {
+
+        $check_call_nocall = 0;
+
+    }
+
+    @allowCall = split /;/, $AGI->database_get( 'ALLOWCALL', $cidnum );
+
+    if ( @allowCall != 0 ) {
+
+        foreach my $cat (@allowCall) {
+            if ( $numerochiamato =~ /^$cat/ ) {
+
+                debug( "Found ALLOWCALL (" . $cat . ")", 1 );
+                $check_call_allow = 0;
+                last;
+
+            } else {
+
+                debug( "Not Found ALLOWCALL (" . $cat . ")", 1 );
+                $check_call_allow = 1;
+
+            }
+        }
+
+    } else {
+
+        $check_call_allow = 1;
+
+    }
+
+    debug( "Variabile check_call_allow (" . $check_call_allow . ")",   1 );
+    debug( "Variabile check_call_nocall (" . $check_call_nocall . ")", 1 );
+
+    if ( $check_call_allow != '' and $check_call_nocall != '' ) {
+
+        if ( $check_call_allow == 1 or $check_call_nocall == 0 ) {
+
+            $AGI->exec( 'Wait', '1' );
+            $rc = $AGI->stream_file('interno_no_call');
+            $AGI->hangup();
+
+        } else {
+
+            exit(0);
+
+        }
+    }
+}
+
+exit(0);
+
+sub debug {
+    my $string = shift;
+    my $level = shift || 3;
+
+    if ($debug) {
+        $AGI->verbose( $string, $level );
+    }
+    return (0);
+}
+
+sub mycallback {
+    my $rc = shift;
+    debug( "User hung up. (rc=" . $rc . ")", 1 );
+    exit($rc);
+}

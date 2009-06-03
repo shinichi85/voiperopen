@@ -1,0 +1,230 @@
+#!/usr/bin/perl -w
+
+########################################################
+########################################################
+####### ZAPBARGE CON NUMERO DI TELEFONO INTERNO ########
+########################################################
+# SIMULAZIONE DEL CHANSPY CON CANALI SIP/IAX2 OVER ZAP #
+########################################################
+########################################################
+######## D.G.XAD 27/05/2006 (C) SPHERAIT.IT ############
+########################################################
+
+use Asterisk::AGI;
+use Net::Telnet;
+
+my $debug = 0;
+my $rc;
+my $priority;
+my $channel;
+my $context;
+my $state;
+my $app;
+my $cidname;
+my $cidnum;
+
+my $AGI   = new Asterisk::AGI;
+my %input = $AGI->ReadParse();
+
+$AGI->setcallback( \&mycallback );
+
+if ( $debug >= 2 ) {
+    foreach $key ( keys %input ) {
+        debug( "$key = " . $input{$key}, 3 );
+    }
+}
+
+if ( $input{'calleridname'} ) {
+    $cidname = $input{'calleridname'};
+    $cidnum  = $input{'callerid'};
+    debug( "Caller ID name is '$cidname' number is '$cidnum'", 1 );
+} elsif ( $input{'callerid'} =~ /^\"(.*)\"\s+\<(\d+)-?(\d*)\>\s*$/ ) {
+    $cidname = $1;
+    $cidnum  = $2 . $3;
+    debug( "Caller ID name is '$cidname' number is '$cidnum'", 1 );
+} elsif ( $input{'callerid'} =~ /^(\d+)*$/ ) {
+    $cidname = $1;
+    $cidnum  = $1;
+    debug( "Caller ID name and number are '$cidnum'", 1 );
+} else {
+    $cidname = undef;
+    $cidnum  = undef;
+    debug( "Caller ID is not set", 1 );
+}
+
+#        Channel                                                    (Context    Extension    Pri )                             	State Appl.         		Data
+#        Zap/1-1                                                    (from-pstn  s            1   )                                     	Up Bridged Call  		IAX2/test@test/1
+#	IAX2/test@test/1   			 (macro-dialout-trunk_simul s            18  )         	Up Dial              		ZAP/g1/187
+
+# 	Zap/1-1             				 s@incoming_from_pots 				Up Bridged Call		SIP/1000-dc89
+# 	SIP/1000-dc89        			187@default_sip:1   					Up Dial			Zap/g1/187
+
+#	 Zap/3-1  					(from-internal s            1   )     				 Up Bridged Call		Zap/1-1
+
+# 	Zap/1-1					(macro-dial s            10  )					 Up Dial			SIP/1008|15|tr
+
+NUMEROTEL: while (1) {
+
+    $get_siphone = $AGI->get_data( "zapbarge_inserire", -1, 10 );
+
+    if ( $get_siphone == "" or $get_siphone =~ m/[*]/g ) { goto NUMEROTEL; }
+
+    $getsip  = "SIP/$get_siphone";
+    $getiax2 = "IAX2/$get_siphone";
+
+    debug( "Numero di Telefono locale: $getsip", 1 );
+
+    $AGI->stream_file('zapbarge_grazie');
+
+    $schannels = &get_active_sip;
+    @lines = split( /\n/, $schannels );
+    shift(@lines);
+
+    foreach $line (@lines) {
+
+        ( $channel, $context, $state, $app ) = split( ' ', $line, 4 );
+
+        if ( $app =~ m/$getsip/gi or $app =~ m/$getiax2/gi ) {
+
+            debug( "CHANNEL: sip or iax2 channel found: $app", 1 );
+
+            if ( $channel =~ m/Zap/gi ) {
+
+                debug( "CHANNEL: zap channel found: $channel", 1 );
+
+                $AGI->exec( 'zapbarge', $channel );
+
+                while (1) {
+
+                    $AGIData = $AGI->get_data( 'zapbarge_menu', -1, 1 );
+
+                    if ( $AGIData eq "1" ) {
+                        goto NUMEROTEL;
+
+                    } elsif ( $AGIData eq "2" ) {
+                        $AGI->stream_file('zapbarge_arrivederci');
+                        $AGI->hangup();
+                        exit(0);
+
+                    } else {
+                        $AGI->stream_file('zapbarge_nonvalida');
+                    }
+
+                }
+
+            } else {
+
+                debug( "CHANNEL: zap channel not found", 1 );
+
+            }
+
+        } elsif ( $channel =~ m/$getsip/gi or $channel =~ m/$getiax2/gi ) {
+
+            debug( "CHANNEL: sip or iax2 channel found: $channel", 1 );
+
+            if ( $app =~ m/^Zap/gi ) {
+
+                debug( "CHANNEL: zap channel found: $app", 1 );
+
+                $AGI->exec( 'zapbarge', $app );
+
+                while (1) {
+
+                    $AGIData = $AGI->get_data( 'zapbarge_menu', -1, 1 );
+
+                    if ( $AGIData eq "1" ) {
+                        goto NUMEROTEL;
+
+                    } elsif ( $AGIData eq "2" ) {
+                        $AGI->stream_file('zapbarge_arrivederci');
+                        $AGI->hangup();
+                        exit(0);
+
+                    } else {
+                        $AGI->stream_file('zapbarge_nonvalida');
+                    }
+
+                }
+
+            } else {
+
+                debug( "CHANNEL: zap channel not found", 1 );
+
+            }
+
+        }
+
+    }
+    debug( "CHANNEL: sip channel not found", 3 );
+    $AGI->stream_file('zapbarge_nozap');
+    goto NUMEROTEL;
+
+}
+
+sub debug {
+    my $string = shift;
+    my $level = shift || 3;
+
+    if ($debug) {
+        $AGI->verbose( $string, $level );
+    }
+    return (0);
+}
+
+sub mycallback {
+    my $rc = shift;
+    debug( "User hung up. (rc=" . $rc . ")", 1 );
+    exit($rc);
+}
+
+sub get_active_sip {
+
+    $server_ip = '127.0.0.1';
+
+    $tn = new Net::Telnet(
+        Port                    => 5038,
+        Prompt                  => '/.*[\$%#>] $/',
+        Output_record_separator => '',
+        Errmode                 => 'return'
+    );
+
+    &get_amportal_conf;
+
+    $tn->open("$server_ip");
+    $tn->waitfor('/0\n$/');
+    $tn->print("Action: Login\n");
+    $tn->print( "Username: " . $config{"AMPMGRUSER"} . "\n" );
+    $tn->print( "Secret: " . $config{"AMPMGRPASS"} . "\n\n" );
+    my ( $pm, $m ) = $tn->waitfor('/Authentication (.+)\n\n/');
+    if ( $m =~ /Authentication failed/ ) {
+        debug("/etc/amportal.conf contains incorrect AMPMGRUSER or AMPMGRPASS");
+        exit;
+    }
+    debug( "Correct AMPMGRUSER and AMPMGRPASS", 3 );
+    $tn->print("Action: command\nCommand: show channels\n\n\n");
+    $tn->waitfor('/Response: Follows\n/');
+    ($schannels) = $tn->waitfor('/.*active channel/') or die "Unable to get channels", $tn->lastline;
+    $tn->print("Action: Logoff\n\n");
+    return $schannels;
+}
+
+sub get_amportal_conf {
+
+    # If this is likely to change, we might need to put this as a
+    # variable at the top
+    my $amportal_conf = "/etc/amportal.conf";
+    if ( open( FH, $amportal_conf ) ) {
+        while ( my $tmp = <FH> ) {
+
+            # Useful regexp taken from Julien Blache's SF patch nbr
+            # 1234233 -  Thanks!
+            if ( $tmp =~ /^\s*([a-zA-Z0-9]+)\s*=\s*(.*)\s*([;#].*)?/ ) {
+
+                # This is a global..
+                $config{$1} = $2;
+            }
+        }
+    } else {
+        debug("Unable to open $amportal_conf");
+    }
+}
