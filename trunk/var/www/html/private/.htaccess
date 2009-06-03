@@ -1,0 +1,13 @@
+## HTEDIT - DELETE THIS LINE IF YOU EDIT THIS FILE!
+## created with htEdit (http://cgi-central.net)
+## comment: Voiper Administrator
+## path:    /var/www/html/private      
+AuthName "Voiper Administrator"
+AuthType basic
+
+## HTEDIT FILES: *
+    AuthUserFile /var/www/html/private/.htpasswd
+    require valid-user
+## END OF HTEDIT FILES: *
+
+## END OF HTEDIT CODE
