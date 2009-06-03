@@ -1,0 +1,13 @@
+## HTEDIT - DELETE THIS LINE IF YOU EDIT THIS FILE!
+## created with htEdit (http://cgi-central.net)
+## comment: Voiper Homepage
+## path:    /var/www/html      
+AuthName "Voiper Homepage"
+AuthType basic
+
+## HTEDIT FILES: *
+    AuthUserFile /var/www/html/.htpasswd
+    require valid-user
+## END OF HTEDIT FILES: *
+
+## END OF HTEDIT CODE
