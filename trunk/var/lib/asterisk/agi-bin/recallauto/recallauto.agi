@@ -1,0 +1,263 @@
+#!/usr/bin/perl -w
+##################################################
+##################################################
+################## Recall Auto ###################
+##################################################
+#########  Copyright 2005-2008 SpheraIT ##########
+##################################################
+##################################################
+########## Versione v0.2 (12/03/2008) ############
+##################################################
+##################################################
+
+use POSIX qw(strtol);
+use POSIX qw(strtod);
+use Asterisk::AGI;
+use Sys::Syslog;
+use Sys::Syslog qw(:DEFAULT setlogsock);
+use File::Copy;
+use Net::Telnet;
+
+my %ext;         # Hash that will contain our list of extensions to call
+my %ext_hunt;    # Hash that will contain our list of extensions to call used by huntgroup
+my $cidnum;      # Caller ID Number for this call
+my $cidname;     # Caller ID Name for this call
+my $timer;       # Call timer for Dial command
+my $dialopts;    # options for dialing
+my $rc;          # Catch return code
+my $priority;    # Next priority
+my $rgmethod;    # If Ring Group what ringing method was chosen
+my $debug               = 0;
+my $lower               = 1000;
+my $upper               = 2000000;
+my $rob_time            = time();
+my $timelimit           = 1800;
+my $timeout             = -1;
+my $abstimeout          = 30;
+my $cb_maxretries       = 9;
+my $cb_retrytime        = 120;
+my $cb_waittime         = 30;
+my $cb_ringtime         = 30;
+my $AGI                 = new Asterisk::AGI;
+my %AGIData             = $AGI->ReadParse();
+my $dest_number         = $AGI->get_variable('EXTTOCALL');
+
+$AGI->setcallback( \&mycallback );
+
+if ( $debug >= 2 ) {
+    foreach $key ( keys %AGIData ) {
+        debug( "$key = " . $AGIData{$key}, 3 );
+    }
+}
+
+if ( $AGIData{'calleridname'} ) {
+    $cidname = $AGIData{'calleridname'};
+    $cidnum  = $AGIData{'callerid'};
+    debug( "Caller ID name is '$cidname' number is '$cidnum'", 1 );
+} elsif ( $AGIData{'callerid'} =~ /^\"(.*)\"\s+\<(\d+)-?(\d*)\>\s*$/ ) {
+    $cidname = $1;
+    $cidnum  = $2 . $3;
+    debug( "Caller ID name is '$cidname' number is '$cidnum'", 1 );
+} elsif ( $AGIData{'callerid'} =~ /^(\d+)*$/ ) {
+    $cidname = $1;
+    $cidnum  = $1;
+    debug( "Caller ID name and number are '$cidnum'", 1 );
+} else {
+    $cidname = undef;
+    $cidnum  = undef;
+    debug( "Caller ID is not set", 1 );
+}
+
+# -1 = Error / 0 = Idle / 1 = Busy / 4 = Unavailable / 8 = Ringing
+
+my $extstate = is_ext_avail($dest_number);
+debug("extstate: $extstate", 4);
+
+$AGI->exec( 'AbsoluteTimeout', $abstimeout );
+
+if (($cidnum) && is_numeric($cidnum) && $extstate == 1) {
+
+    while (1) {
+
+        $AGIData = $AGI->get_data( 'recallauto_menu', -1, 1 );
+
+        if ( $AGIData eq "5" ) {
+
+          debug( "Opzione: $AGIData", 1 );
+          init_rob();
+
+        } elsif ( $AGIData eq "0" ) {
+
+          debug( "Opzione: $AGIData", 1 );
+          exit;
+
+
+        } else {
+
+            $AGI->stream_file('recallauto_opzione_non_valida');
+        }
+    }
+}
+
+exit(0);
+
+sub init_rob {
+
+    my $rob = $AGI->database_get('ROB',$cidnum);
+    if ($rob) {
+        debug("DbGet /$cidnum ($rob)", 3);
+            } else {
+            debug("Failed to DbGet /$cidnum", 1);
+        }
+
+    if ($rob_time > $rob) {
+
+        $rc = $AGI->database_del('ROB',$cidnum);
+        if ($rc) {
+             debug("DbDel /$cidnum", 3);
+                 } else {
+                  debug("Failed to DbDel /$cidnum ($rc)", 1);
+        }
+
+        write_callback( $dest_number, $cidnum, $cidname, $cb_maxretries, $cb_retrytime, $cb_waittime, $cb_ringtime, $dest_number );        
+
+        $rc = $AGI->database_put('ROB', $cidnum, $rob_time + $timelimit);
+        if ($rc) {
+             debug("DbSet /$cidnum to $rob_time + $timelimit", 3);
+                 } else {
+                  debug("Failed to DbSet /$cidnum to $rob_time + $timelimit ($rc)", 1);
+        }
+
+        $AGI->exec( 'Wait','0.5' );
+        $AGI->stream_file('recallauto_attivato');
+        $AGI->stream_file('recallauto_riagganciare');
+
+        } else {
+
+            $AGI->exec( 'Wait','0.5' );
+            $AGI->stream_file('recallauto_servizio_rifiutato');
+            $AGI->stream_file('recallauto_errore');
+            $AGI->stream_file('recallauto_riagganciare');
+
+        }
+
+    $AGI->hangup();
+    exit(0);
+
+}
+
+sub write_callback {
+
+    my $cb_dest_number  = shift;
+    my $cb_calleridnum  = shift;
+    my $cb_calleridname = shift;
+    my $cb_maxretries   = shift;
+    my $cb_retrytime    = shift;
+    my $cb_waittime     = shift;
+    my $cb_ringtime     = shift;
+    my $cb_rob_cidnum   = shift;
+
+    my $newtime  = time() + $cb_ringtime;
+    my $uid      = int( rand( $upper - $lower + 1 ) ) + $lower;
+    my $dirtemp  = "/tmp/";
+    my $filetemp = "$cb_calleridnum-$uid";
+
+    open( FILE, '>' . $dirtemp . $filetemp ) or debug( "Cannot open file", 1 );
+    print FILE "Callerid: $cb_calleridname <$cb_calleridnum>\n";
+    print FILE "Channel: Local/$cb_dest_number\@from-internal\n";
+    print FILE "Context: recallonbusy-dial\n";
+    print FILE "Extension: s\n";
+    print FILE "MaxRetries: $cb_maxretries\n";
+    print FILE "RetryTime: $cb_retrytime\n";
+    print FILE "WaitTime: $cb_waittime\n";
+    print FILE "Priority: 1\n";
+    print FILE "Set: rob_cidnum_dest=\<$cb_rob_cidnum\>\n";
+    print FILE "Set: rob_cidname_dest=Prenotazione Chiamata\n";
+    print FILE "Set: rob_cidnum_source=$cb_calleridnum\n";
+    close(FILE);
+
+    utime( $newtime, $newtime, ( $dirtemp . $filetemp ) );
+    move( "$dirtemp$filetemp", "/var/spool/asterisk/outgoing/$filetemp" ) or debug( "callback move temp failed: $!", 1 );
+    return (0);
+
+}
+
+sub debug {
+
+    my $string  = shift;
+    my $level   = shift || 3;
+    my $program = "recallauto.agi";
+
+    if ($debug) {
+        $AGI->verbose( $string, $level );
+        openlog( $program, 'pid' );
+        syslog( 'info', "$string" );
+        closelog();
+    }
+
+    return (0);
+}
+
+sub mycallback {
+    my $rc = shift;
+    debug( "User hung up. (rc=" . $rc . ")", 4 );
+    exit($rc);
+}
+
+sub getnum {
+        my $str = shift;
+        $str =~ s/^\s+//;
+        $str =~ s/\s+$//;
+        $! = 0;
+        my($num, $unparsed) = strtod($str);
+        if (($str eq '') || ($unparsed != 0) || $!) {
+            return undef;
+        } else {
+            return $num;
+        }
+}
+
+sub is_numeric { defined getnum($_[0]) }
+
+sub is_ext_avail {
+
+        my $extnum = shift;
+        my $server_ip='127.0.0.1';
+
+        $tn = new Net::Telnet (Port => 5038,
+                                Prompt => '/.*[\$%#>] $/',
+                                Output_record_separator => '',
+                                Errmode    => 'return'
+                                );
+
+      $tn->open("$server_ip");
+      $tn->waitfor('/0\n$/');
+      $tn->print("Action: Login\n");
+      $tn->print("Username: admin\n");
+      $tn->print("Secret: voiper\n\n");
+      my ($pm, $m) = $tn->waitfor('/Authentication (.+)\n\n/');
+      if ($m =~ /Authentication failed/) {
+         debug("Login contains incorrect Username or Password", 4);
+         exit;
+      }
+      debug("Correct Login", 4);
+
+      $tn->print("Action: ExtensionState\nExten: $extnum\nContext: ext-local\nActionId: 8355\n\n");
+      $tn->waitfor('/Response: Success\n/');
+      $tn->waitfor('/ActionID: 8355\n/');
+
+      my $ok = 0;
+      my $extstatus = 0;
+      ($ok, $extstatus) = $tn->waitfor('/Status: .*\n/') or debug("Could not get ExtensionState", 4);
+
+      $tn->print("Action: Logoff\n\n");
+
+      if ($ok && $extstatus =~ /Status: (.*)/) {
+         $extstatus = $1;
+      } else {
+            $extstatus = -1;
+      }
+
+      return $extstatus;
+}
+
