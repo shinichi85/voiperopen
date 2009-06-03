@@ -1,0 +1,85 @@
+Migliorie / Fix / Aggiornamenti - Voiper Open 2.2.2
+
+- Aggiornamento Mysql5
+- Aggiornamento PHP5
+- Aggiornamento Perl 5.8.8
+- Aggiornamento Logo Voiper Open
+- Aggiornamento Database Voiper/CTI/Phonebook/CDR
+- Aggiornamento Install Script
+- Aggiornamento Creazione Database
+- Fix Path errato perl-gd in Install Script
+- Aggiornato Creazione utente/gruppo Asterisk in Install Script
+- Spostato Installazione Asterisk Core Dopo Aggiornamento Mysql5/PHP5
+- Aggiornati RPM nello script di Installazione del Voiper Open
+voiper-asterisk-conf
+voiper-asterisk-moh
+voiper-asterisk-agi
+voiper-asterisk-bin
+voiper-asterisk-sounds
+- Aggiornato nuovo Setup Asterisk v1.4.x + Dipendenze
+- Modificato specs per voiper-scripts
+- Aggiornato creazione sudoers in Install Script
+- Fix grant SQL
+- Inserito RPM di php-mbstring nell'installazione di Mysql5/PHP5
+- Chown per AddOns in Install Script
+- Aggiunti Permessi /var/run/asterisk
+- Aggiunto touch per link sources kernel /usr/src
+- Aggiunto features nello script di post install del core Asterisk
+- Fix per UDEV Installazione Zaptel Device permission su REDHAT
+- Fix Rimozione cron.daily
+- Fix Importazione GPG Key
+- Aggiunto NOFrameBuffer "NOFB" parametro Kernel per startup CD
+- Aggiornato Splash Screen Grub
+- Aggiunto Splash Screen Shell
+- Aggiunta Gestione Italiano/Inglese per startup CD
+- Aggiornato ReadME per startupCD Italiano/Inglese
+- Fix Partizionamento durante il Setup se si utilizza PC con 2 Harddisk o piu'
+- Spostato aggiornamento Kernel nel Post Install Script del Kickstart di redhat
+- Aggiornato Post Install Script del Kickstart di redhat
+- Tolto Aggiornamento Kernel dallo script di installazione del Voiper Open
+- Tolto Aggiornamento Kernel dallo startup script di redhat 'rc.local'
+- Aggiunto initrd autogenerato statico per Kernel
+
+Aggiornamento RPM - Voiper Open 2.2.2
+
+- Libtiff
+- Spandsp
+- Argus
+- Webmin
+- Lshw
+- Asterisk
+- Asterisk-Addons
+- Asterisk-Agx
+- Libpri
+- Zaptel
+- Zaptel-misdn
+- Kernel-initrd
+- Voiper-Asterisk-Conf
+- PHP-mbstring
+- VoiperSerial
+- VoiperAgent
+- Bi4Data CDR Pusher
+- Asterisk-addons
+- GrandStream-addons
+- vcti
+- gnutls
+- r8168
+- r8101
+- e1000
+- e1000e
+- Voiper-Asterisk-moh
+- Voiper-Asterisk-agi
+- Voiper-Asterisk-bin
+- Voiper-Asterisk-sounds
+
+
+I test del Voiper Open 2.2.2 sono stati eseguiti su:
+
+- Motherboard Intel con Chipset Intel
+- Motherboard Asus AMD con Chipset VIA
+- Motherboard Epia con Chipset VIA
+- Scheda Madre Intel modello D945GCLF
+
+- VMware Fusion Free Trial OSx
+- VirtualBox 2.2.2
+

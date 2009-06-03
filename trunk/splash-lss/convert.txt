@@ -1,0 +1,7 @@
+convert -depth 8 -colors 14 voiperopen-logo.jpg splash.ppm
+
+convert voiperopen-logo.gif splash.ppm
+
+ppmtolss16 < splash.ppm > splash.lss
+
+
