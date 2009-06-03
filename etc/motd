@@ -1,0 +1,38 @@
+[33m
+                                                                                      
+ (ADDDD)   JDDDDA).ADDDDDDDDDDDA. UDDDDDA UDDDDDDDDDDDA).ADDDDDDDDDDDA).UDDDDDDDDDDDA 
+  UDDDDU  JADDDA)(ADDDDAAAADDDDDU UDDDDD) DDDDDU"UDDDDDF(DDDDDA"AADDDD)(DDDDDA"UDDDDD 
+  (DDDDA)JDDDDA) (DDDDDF  UDDDDA) DDDDDA (DDDDA) JDDDDU`ADDDDU) JDDDDA)UDDDDA  ADDDDU 
+   ADDDDUDDDDA`  ADDDDD) (ADDDDU (DDDDDU UDDDDU .UDDDDA(UDDDDDDDDDDDDU(ADDDDU .DDDDDU 
+   UDDDDDDDDA)  .UDDDDU` (DDDDD) UDDDDD)(ADDDDQLUADDDD)UDDDDAAADDAAAF`(DDDDDQ_UDDDDA) 
+   4DDDDDDDA`   (DDDDDQLJADDDDD)(ADDDDU`JDDDDDDDDDDDAF UDDDDUL    .A. JDDDDDDDDDDDAF  
+   (UDDDDDD)    4ADDDDDDDDDDDAF UDDDDDU UDDDDU""""""  `UDDDDDDDDDDDD).UDDDDQ""UDDDDL  
+    """""""      """"""""""""`  """"""` """""`         `""""""""""""  """""`  `"""""  
+[35m            Benvenuto nella console del Sistema Voiper PBX v2 by SPHERAIT.it
+[37m
+[41mComandi della Console[0m:
+---------------------[0m
+[32m
+- [37miftop[32m (Monitor di Traffico su Ethernet)
+- [37mhtop[32m (Monitor per CPU e Servizi)
+- [37miptraf[32m (Analizzatore di Traffico Avanzato su Ethernet (UDP/TCP))
+- [37mmc[32m (FileManager Grafico)
+- [37mzttool[32m (Monitor per i driver ZAPTEL di Asterisk) 
+- [37mvoiper[32m (Batch per l'esecuzione dei servizi Asterisk e Driver)
+- [37masteriskinfo[32m (Stampa a Video una raccolta di informazioni del servizio Asterisk e server NTP)
+- [37masteriskconsole[32m (Console di Asterisk)
+- [37mmtop/mkill[32m (Utility per mySQL. Per maggiori informazioni digitare: man mtop / man mkill)
+- [37msipsak[32m (SIP utility per gli Amministratori/Sviluppatori)
+- [37mifconfig[32m (Visualizza IP / Netmask / Broadcast)
+- [37mroute[32m (Visualizza la routing table)
+- [37mreboot[32m (Riavvia il Sistema Operativo Linux)
+- [37mshutdown[32m (Esegue la procedura di shutdown)
+
+- [37msystem-config-network[32m (Interfaccia Grafica per cambiare IP/DNS/Gateway.)
+- [37msystem-config-time[32m (Interfaccia Grafica per cambiare il Timezone.)
+- [37msystem-config-keyboard[32m (Interfaccia Grafica per cambiare la nazionalita' della Tastiera)
+- [37msystem-config-authentication[32m (Interfaccia Grafica per cambiare la modalita' di Autenticazione)
+- [37mntsysv[32m (Interfaccia Grafica per cambiare l'esecuzione dei Servizi)
+
+- [37mvoipermenu[32m (Visualizza questo menu')
+[0m

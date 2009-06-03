@@ -1,0 +1,6 @@
+#!/bin/sh
+clear
+echo " "
+echo "*** Asterisk online monitoring - For ending type: exit"
+echo " "
+asterisk -vvvvr

@@ -1,0 +1,391 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+#use SOAP::Lite +trace => [qw(all)];
+use SOAP::Lite;
+use LWP::UserAgent;
+use Data::Dumper;
+use DBI;
+use POSIX qw(strftime);
+
+$SIG{INT} = sub {exit(0)};
+
+############################################################################
+#                           Creating PID file                              #
+############################################################################
+
+my $pidfile = "/var/run/vagent_service.pid";
+my $pid = $$;
+
+if (-e $pidfile) {
+    print "vagent already running... exiting\n";
+    exit (1);
+} else {
+        open my $fd,'>', $pidfile or die $!;
+        print $fd $pid;
+        close $fd or die $!;
+}
+
+############################################################################
+#                              Random Startup                              #
+############################################################################
+
+# Minimo 1 Minuto.
+# Massimo 15 Minuti.
+
+my $randomrun = int(rand(960)) + 60;
+sleep ($randomrun);
+
+############################################################################
+#                              Setup Variables                             #
+############################################################################
+
+my $soap_proxy = 'http://services.voiper.it/voiperagent/1/';
+my $cdr_sum = undef;
+my $cdr_min = undef;
+my $cdr_max = undef;
+my $cdr_calls = undef;
+my $from_date = strftime "%Y-%m-%d", localtime( time-86400*7 );
+my $to_date = strftime "%Y-%m-%d", localtime( time-86400 );
+
+############################################################################
+#                            Database Connections                          #
+############################################################################
+
+my $asterisk_dbname = "asterisk";
+my $asterisk_dbhost = "localhost";
+my $asterisk_dbuser = "asteriskuser";
+my $asterisk_dbpass = "amp109";
+my $asterisk_dsn    = "DBI:mysql:$asterisk_dbname:$asterisk_dbhost";
+my $asterisk_dbh    = DBI->connect( $asterisk_dsn, $asterisk_dbuser, $asterisk_dbpass ) or error_mysql();
+
+my $cti_dbname = "vcti";
+my $cti_dbhost = "localhost";
+my $cti_dbuser = "vcti";
+my $cti_dbpass = "vcti";
+my $cti_dsn = "DBI:mysql:$cti_dbname:$cti_dbhost";
+my $cti_dbh = DBI->connect( $cti_dsn, $cti_dbuser, $cti_dbpass ) or error_mysql();
+
+my $phonebook_dbname = "phonebook";
+my $phonebook_dbhost = "localhost";
+my $phonebook_dbuser = "asteriskuser";
+my $phonebook_dbpass = "amp109";
+my $phonebook_dsn = "DBI:mysql:$phonebook_dbname:$phonebook_dbhost";
+my $phonebook_dbh = DBI->connect( $phonebook_dsn, $phonebook_dbuser, $phonebook_dbpass ) or error_mysql();
+
+my $cdr_dbname = "asteriskcdrdb";
+my $cdr_dbhost = "localhost";
+my $cdr_dbuser = "asteriskuser";
+my $cdr_dbpass = "amp109";
+my $cdr_dsn = "DBI:mysql:$cdr_dbname:$cdr_dbhost";
+my $cdr_dbh = DBI->connect( $cdr_dsn, $cdr_dbuser, $cdr_dbpass ) or error_mysql();
+
+############################################################################
+#                               Soap client                                #
+############################################################################
+
+my $getSerial = getSerial();
+my $service = SOAP::Lite
+                    ->uri('urn:VoiperAgent')
+                    ->proxy($soap_proxy, timeout => 15)
+                    ->on_fault( sub { soap_fault(@_) } );
+
+$service->getServerTime()->result;
+$service->getVoiperVersion()->result;
+
+my $getHardwareInfo = getHardwareInfo();
+my $hardware_info = SOAP::Data->name('HardwareInfo')->value(
+                        \SOAP::Data->value(
+                            SOAP::Data->name('lshwData')->value($getHardwareInfo)->type('string') 
+                        )    
+                    )->type('HardwareInfo');
+  
+$service->pushHardwareInfo($getSerial, $hardware_info)->result;
+
+my $getvoiperVersion = getvoiperVersion();
+my $getsipExtensionCount = getsipExtensionCount();
+my $getsipTrunkCount = getsipTrunkCount();
+my $getiaxExtensionCount = getiaxExtensionCount();
+my $getiaxTrunkCount = getiaxTrunkCount();
+my $getmisdnTrunkCount = getmisdnTrunkCount();    
+my $getmisdnInfo = getmisdnInfo();
+my $getzapTrunkCount = getzapTrunkCount();
+my $getzapInfo = getzapInfo();
+my $getenumTrunkCount = getenumTrunkCount();
+my $getqueueCount = getqueueCount();
+my $getringGroupCount = getringGroupCount();
+my $getctiUsersCount = getctiUsersCount();
+my $getivrCount = getivrCount();
+my $getconferenceCount = getconferenceCount();
+my $getspeedDialCount = getspeedDialCount();
+my $getasteriskCoreDumpCount = getasteriskCoreDumpCount();
+my $getinboundRouteCount = getinboundRouteCount();
+my $getmiscDestinationCount = getmiscDestinationCount();
+my $gettrunkToneCount = gettrunkToneCount();
+my $getonHoldMusicCount = getonHoldMusicCount();
+my $getphonebookEntriesCount = getphonebookEntriesCount();
+
+my $system_info = SOAP::Data->name('SystemInfo')->value(
+                        \SOAP::Data->value(
+                            SOAP::Data->name('voiperVersion')->value($getvoiperVersion)->type('string'),
+                            SOAP::Data->name('sipExtensionCount')->value($getsipExtensionCount)->type('int'),
+                            SOAP::Data->name('sipTrunkCount')->value($getsipTrunkCount)->type('int'),
+                            SOAP::Data->name('iaxExtensionCount')->value($getiaxExtensionCount)->type('int'),
+                            SOAP::Data->name('iaxTrunkCount')->value($getiaxTrunkCount)->type('int'),
+                            SOAP::Data->name('misdnTrunkCount')->value($getmisdnTrunkCount)->type('int'),
+                            SOAP::Data->name('misdnInfo')->value($getmisdnInfo)->type('string'),
+                            SOAP::Data->name('zapTrunkCount')->value($getzapTrunkCount)->type('int'),
+                            SOAP::Data->name('zapInfo')->value($getzapInfo)->type('string'),
+                            SOAP::Data->name('enumTrunkCount')->value($getenumTrunkCount)->type('int'),
+                            SOAP::Data->name('queueCount')->value($getqueueCount)->type('int'),
+                            SOAP::Data->name('ringGroupCount')->value($getringGroupCount)->type('int'),
+                            SOAP::Data->name('ctiUsersCount')->value($getctiUsersCount)->type('int'),
+                            SOAP::Data->name('ivrCount')->value($getivrCount)->type('int'),
+                            SOAP::Data->name('conferenceCount')->value($getconferenceCount)->type('int'),
+                            SOAP::Data->name('speedDialCount')->value($getspeedDialCount)->type('int'),
+                            SOAP::Data->name('asteriskCoreDumpCount')->value($getasteriskCoreDumpCount)->type('int'),
+                            SOAP::Data->name('inboundRouteCount')->value($getinboundRouteCount)->type('int'),
+                            SOAP::Data->name('miscDestinationCount')->value($getmiscDestinationCount)->type('int'),
+                            SOAP::Data->name('trunkToneCount')->value($gettrunkToneCount)->type('int'),
+                            SOAP::Data->name('onHoldMusicCount')->value($getonHoldMusicCount)->type('int'),
+                            SOAP::Data->name('phonebookEntriesCount')->value($getphonebookEntriesCount)->type('int')
+                        )    
+                    )->type('SystemInfo');    
+
+$service->pushSystemInfo($getSerial, $system_info)->result;
+
+getSystemStat( $from_date, $to_date );
+my $system_stat = SOAP::Data->name('SystemStat')->value(
+                        \SOAP::Data->value(
+                            SOAP::Data->name('fromDate')->value($from_date)->type('date'), 
+                            SOAP::Data->name('toDate')->value($to_date)->type('date'),
+                            SOAP::Data->name('callsCount')->value($cdr_calls)->type('string'),
+                            SOAP::Data->name('callsTotalDuration')->value($cdr_sum)->type('int'),
+                            SOAP::Data->name('callsMinDuration')->value($cdr_min)->type('int'),
+                            SOAP::Data->name('callsMaxDuration')->value($cdr_max)->type('int')
+                        )    
+                    )->type('SystemStat');
+                    
+$service->pushSystemStat($getSerial, $system_stat)->result;
+
+$asterisk_dbh->disconnect;
+$cti_dbh->disconnect;
+$phonebook_dbh->disconnect;
+$cdr_dbh->disconnect;
+exit(0);
+
+############################################################################
+#                               SUBROUTINES                                #
+############################################################################
+
+END {
+    if ( $? != 1 ) {
+        if ( $$ == $pid ) {
+            unlink $pidfile or die $!;
+        }
+    }
+}
+
+sub soap_fault {
+    my ( $soap, $res ) = @_;
+#    print "--- SOAP FAULT BEGIN ---\n";
+#    print Dumper(@_);
+#    print "--- SOAP FAULT END ---\n";
+    exit (0);
+}
+
+sub getSerial {
+    my $serial = `cat /etc/voiper_serial | tr -d '\n'`;
+    return $serial;
+}
+
+sub getHardwareInfo {
+    my $hardwareinfo = `lshw -xml 2>&1`;
+    return $hardwareinfo;
+}
+
+sub getvoiperVersion {
+    my $voiperVersion = `cat /etc/ver_voiper | sed -n -e '1,1p' | sed -e 's/version=v//' | tr -d '\n'`;
+    return $voiperVersion;
+}
+
+sub getsipExtensionCount {
+    my $query ="SELECT count(id) FROM sip WHERE keyword = 'account' AND id NOT LIKE '9%'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $sipExtensionCount = $sth->fetchrow();
+    return $sipExtensionCount;
+}
+
+sub getsipTrunkCount {
+    my $query ="SELECT count(value) FROM globals WHERE variable LIKE 'OUT_%' AND value LIKE 'SIP%'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $sipTrunkCount = $sth->fetchrow();
+    return $sipTrunkCount;
+}
+
+sub getiaxExtensionCount {
+    my $query ="SELECT count(id) FROM iax WHERE keyword = 'account' AND id NOT LIKE '9%'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $iaxExtensionCount = $sth->fetchrow();
+    return $iaxExtensionCount;
+}
+
+sub getiaxTrunkCount {
+    my $query ="SELECT count(value) FROM globals WHERE variable LIKE 'OUT_%' AND value LIKE 'IAX%'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $iaxTrunkCount = $sth->fetchrow();
+    return $iaxTrunkCount;
+}
+
+sub getmisdnTrunkCount {
+    my $query ="SELECT count(value) FROM globals WHERE variable LIKE 'OUT_%' AND value LIKE '%mISDN%'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $misdnTrunkCount = $sth->fetchrow();
+    return $misdnTrunkCount;
+}
+
+sub getmisdnInfo {
+    my $misdnInfo = `misdnportinfo 2>&1`;
+    if (($misdnInfo =~ m/errno=2/)) {
+    $misdnInfo = "No mISDN Modules & Devices installed";
+    return $misdnInfo;
+    } else {
+       return $misdnInfo;
+    }
+}
+
+sub getzapTrunkCount {
+    my $query ="SELECT count(value) FROM globals WHERE variable LIKE 'OUT_%' AND value LIKE 'ZAP%'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $zapTrunkCount = $sth->fetchrow();
+    return $zapTrunkCount;
+}
+
+sub getzapInfo {
+    my $zapInfo = `zaptel_hardware 2>&1`;
+    return $zapInfo;
+}
+
+sub getenumTrunkCount {
+    my $query ="SELECT count(value) FROM globals WHERE variable LIKE 'OUT_%' AND value LIKE 'ENUM/'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $enumTrunkCount = $sth->fetchrow();
+    return $enumTrunkCount;
+}
+
+sub getqueueCount {
+    my $query ="SELECT count(id) FROM queues WHERE keyword = 'account'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $queueCount = $sth->fetchrow();
+    return $queueCount;
+}
+
+sub getringGroupCount {
+    my $query ="SELECT count(context) FROM extensions WHERE context = 'ext-group' AND application = 'macro'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $ringGroupCount = $sth->fetchrow();
+    return $ringGroupCount;
+}
+
+sub getctiUsersCount {
+    my $query ="SELECT count(user_id) FROM cti_users";
+    my $sth = $cti_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $ctiUsersCount = $sth->fetchrow();
+    return $ctiUsersCount;
+}
+
+sub getivrCount {
+    my $query ="SELECT count(context) FROM extensions WHERE context LIKE 'aa_%' AND application = 'background'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $ivrCount = $sth->fetchrow();
+    return $ivrCount;
+}
+
+sub getconferenceCount {
+    my $query ="SELECT count(exten) FROM meetme";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $conferenceCount = $sth->fetchrow();
+    return $conferenceCount;
+}
+
+sub getspeedDialCount {
+    my $query ="SELECT count(id) FROM speednr";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $speedDialCount = $sth->fetchrow();
+    return $speedDialCount;
+}
+
+sub getasteriskCoreDumpCount {
+    my $asteriskCoreDumpCount = `find /tmp -name 'core.*' | wc -l 2>&1`;
+    return $asteriskCoreDumpCount;
+}
+
+sub getinboundRouteCount {
+    my $query ="SELECT count(cidnum) FROM incoming";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $inboundRouteCount = $sth->fetchrow();
+    return $inboundRouteCount;
+}
+
+sub getmiscDestinationCount {
+    my $query ="SELECT count(context) FROM extensions WHERE context = 'ext-miscdests'";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $miscDestinationCount = $sth->fetchrow();
+    return $miscDestinationCount;
+}
+
+sub gettrunkToneCount {
+    my $query ="SELECT count(id) FROM simultone";
+    my $sth = $asterisk_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $trunkToneCount = $sth->fetchrow();
+    return $trunkToneCount;
+}
+
+sub getonHoldMusicCount {
+    my $onHoldMusicCount = `find /var/lib/asterisk/mohmp3 -name '*.mp3' | wc -l 2>&1`;
+    return $onHoldMusicCount;
+}
+
+sub getphonebookEntriesCount {
+    my $query ="SELECT count(phonebook_id) FROM phonebook";
+    my $sth = $phonebook_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $phonebookEntriesCount = $sth->fetchrow();
+    return $phonebookEntriesCount;
+}
+
+sub getSystemStat {
+    my $from_date = shift;
+    my $to_date = shift;
+    my $query ="SELECT COALESCE(sum(billsec),0) AS sum, COALESCE(min(billsec),0) AS min, COALESCE(max(billsec),0) AS max, COALESCE(count(calldate),0) as calls FROM cdr WHERE date(calldate) <= '$to_date' AND date(calldate) >= '$from_date' AND billsec > 0";
+    my $sth = $cdr_dbh->prepare($query);
+    $sth->execute || error_mysql();
+    my $result = $sth->fetchrow_hashref;
+    $cdr_sum = $result->{sum};
+    $cdr_min = $result->{min};
+    $cdr_max = $result->{max};
+    $cdr_calls = $result->{calls};
+    return $cdr_sum,$cdr_min,$cdr_max,$cdr_calls;
+}
+
+sub error_mysql {
+    print "Can't connect to MySQL services.\n";
+    exit(1);
+}

@@ -1,0 +1,80 @@
+#!/bin/bash
+
+FILENAME=$1
+UPDATE="update_dec.tar"
+
+if [ -z "$FILENAME" ]; then
+	echo "usage: updater [filename].gpg"
+    exit 1
+fi
+
+if [ -f "$FILENAME" ]; then
+
+    echo
+    echo "Voiper Software Updater v0.1 by SpheraIT"
+    echo
+    echo "Avvertenze:"
+    echo "Durante l'aggiornamento si consiglia di NON utilizzare Telefoni"
+    echo "o Apparati collegati al Voiper PBX e si prega di non Interrompere"
+    echo "la procedura di Aggiornamento."
+    echo "Non utilizzare la directory /tmp per il file di aggiornamento .gpg"
+    echo "utilizzare /root. ES: updater /root/filename.gpg"
+    echo
+    echo -n "Vuoi procedere con l'aggiornamento (Y/N)?"
+
+    read answer
+    if test "$answer" != "Y" -a "$answer" != "y";
+	    then exit 1;
+    fi
+
+    echo
+    echo "Rimozione dei file Temporanei."
+
+    REMOVE_TMP=`rm -rf /tmp/* >/dev/null 2>&1`
+
+    DECRYPTER=`gpg --yes --homedir /home/.gnupg --output /tmp/$UPDATE --decrypt $FILENAME >/dev/null 2>&1`
+
+    if [ "$?" -ne "0" ]; then
+	    echo
+	    echo "La signature del file $FILENAME non è corretta."
+	    exit 1
+    fi
+
+    echo
+    echo "La signature del file $FILENAME è corretta."
+    echo
+
+    DECRUNCHER=`tar xpf /tmp/$UPDATE -C /tmp >/dev/null 2>&1`
+
+    if [ "$?" -ne "0" ]; then
+        echo "Errore nella decompressione del file $UPDATE nella directory temporanea."
+	    REMOVE_TMP=`rm -rf /tmp/* >/dev/null 2>&1`
+	    exit 1
+    fi
+
+    INSTALLER=`sh /tmp/install`
+
+#echo "$INSTALLER"
+
+    if [ "$?" -ne "0" ]; then
+        echo "$INSTALLER"
+        exit 1
+    fi
+
+    echo "$INSTALLER"
+
+    echo
+    echo -n "Vuoi riavviare il Centralino (Y/N)?"
+
+    read answer
+    if test "$answer" != "Y" -a "$answer" != "y"; then
+        exit 1;
+    fi
+
+    reboot
+else
+        echo "updater: $FILENAME: No such file"
+        exit 1
+fi
+
+exit 0

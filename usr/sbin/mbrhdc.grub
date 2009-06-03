@@ -1,0 +1,4 @@
+device (hd0) /dev/hdc
+root (hd0,0)
+setup (hd0)
+

@@ -1,0 +1,250 @@
+#!/bin/bash
+
+ROOT_UID=0	 # root uid is 0
+E_NOTROOT=67	 # Non-root exit error
+
+
+echo
+# check to see if we are root
+if [ "$UID" -ne "$ROOT_UID" ]
+then
+	echo "Sorry, you must be root to run this script."
+	echo
+	exit $E_NOTROOT
+fi
+
+# make sure config file exists
+if [ ! -e "/etc/amportal.conf" ]       # Check if file exists.
+  then
+    echo;
+    echo "/etc/amportal.conf does not exist!";
+	echo "Have you installed the AMP configuration?";
+	exit;
+fi
+source /etc/amportal.conf
+
+chown_asterisk() {
+	echo SETTING FILE PERMISSIONS
+    	chown -R asterisk:asterisk /etc/vsftpd.ftpusers
+    	chown -R asterisk:asterisk /etc/vsftpd.user_list
+    	chown -R root:asterisk /root/.forward
+    	chown root:asterisk /root
+	chown -R asterisk:asterisk /var/run/asterisk
+	chown -R asterisk:asterisk /etc/asterisk
+	chown -R asterisk:asterisk /var/lib/asterisk
+	chown -R asterisk:asterisk /var/log/asterisk
+	chown -R asterisk:asterisk /var/spool/asterisk
+	chown asterisk /dev/tty9
+	chown -R asterisk:asterisk $AMPWEBROOT
+	chown -R asterisk:asterisk $AMPWEBROOT/private/admin
+	chown -R asterisk:asterisk $AMPWEBROOT/public/panel
+	chown -R asterisk:asterisk $AMPWEBROOT/_asterisk
+	chmod 644 /etc/asterisk/*.*
+	chmod 755 /usr/lib/asterisk/modules/*.*
+	chmod u+x /var/lib/asterisk/bin/*
+	chmod u+x /var/lib/asterisk/bin/archive_recordings
+	chmod u+x /var/lib/asterisk/agi-bin/*
+	chmod u+x /var/lib/asterisk/agi-bin/directory
+	chmod u+x /var/lib/asterisk/agi-bin/fixlocalprefix
+	chmod u+x /var/lib/asterisk/agi-bin/recordingcheck
+	chmod u+x $AMPWEBROOT/private/*.pl
+	chmod u+x $AMPWEBROOT/public/*.pl
+	chmod u+x $AMPWEBROOT/private/admin/*.pl
+	chmod u+x $AMPWEBROOT/private/admin/*.sh
+	chmod u+x $AMPWEBROOT/public/panel/*.pl
+	chmod u+x $AMPWEBROOT/public/panel/safe_opserver
+	# Ensure that various hardware devices are owned correctly.
+	[ -e /dev/zap ] && chown -R asterisk:asterisk /dev/zap
+	[ -e /dev/capi20 ] && chown -R asterisk:asterisk /dev/capi20
+	[ -e /dev/misdn ] && chown -R asterisk:asterisk /dev/misdn
+	[ -e /dev/dsp ] && chown -R asterisk:asterisk /dev/dsp
+	# TFTPBoot
+	chmod 666 /tftpboot/*
+	chown -R asterisk:asterisk /tftpboot
+	echo Permissions OK
+}
+
+check_asterisk() {
+# check to see if asterisk is running
+# Note, this isn't fool-proof.  If safe_asterisk is constantly restarting a dying asterisk, then there is a chance pidof will return non zero.  We call this twice to reduce chances of this happening
+pid_length=`pidof asterisk|awk '{print length($0)}'`
+	if [ "$pid_length" == "0" -a "$pid_length" != "" ]
+		then
+				killall -9 safe_asterisk
+				sleep 2
+				killall -9 madplay > /dev/null
+				echo
+				echo "-----------------------------------------------------"
+				echo "Asterisk could not start!"
+				echo "Use 'tail /var/log/asterisk/full' to find out why."
+				echo "-----------------------------------------------------"
+				exit 0
+		fi
+}
+
+run_asterisk() {
+# check to see if asterisk is running
+echo
+echo "STARTING ASTERISK IN MODALITA' SIP GATEWAY"
+pid_length=`pidof asterisk|awk '{print length($0)}'`
+	if [ "$pid_length" != "0" -a "$pid_length" != "" ]
+		then
+			echo "Asterisk is already running"
+		else
+			sleep 2
+			su - root -c "/sbin/modprobe -a zaptel zttranscode"
+			sleep 20
+			su - root -c "/sbin/modprobe ztdummy"
+			sleep 2
+			export LD_LIBRARY_PATH=/usr/local/lib
+			/usr/sbin/safe_asterisk -U asterisk -G asterisk
+			sleep 5
+			check_asterisk
+			sleep 1
+			check_asterisk
+			echo "Asterisk Started"
+		fi
+}
+
+run_onlyasterisk() {
+# check to see if asterisk is running
+echo
+echo "STARTING ASTERISK IN MODALITA' SIP GATEWAY"
+pid_length=`pidof asterisk|awk '{print length($0)}'`
+	if [ "$pid_length" != "0" -a "$pid_length" != "" ]
+		then
+			echo "Asterisk is already running"
+		else
+			export LD_LIBRARY_PATH=/usr/local/lib
+			/usr/sbin/safe_asterisk -U asterisk -G asterisk
+			sleep 5
+			check_asterisk
+			sleep 1
+			check_asterisk
+			echo "Asterisk Started"
+		fi
+}
+
+stop_asterisk() {
+echo
+echo "STOPPING ASTERISK"
+pid_length=`pidof asterisk|awk '{print length($0)}'`
+	if [ "$pid_length" != "0" -a "$pid_length" != "" ]
+		then
+			/usr/sbin/asterisk -rx "stop gracefully"
+			sleep 2
+			su - root -c "/sbin/rmmod zttranscode ztdummy"
+			sleep 20
+			su - root -c "/sbin/rmmod zaptel"
+			sleep 2
+			echo "Asterisk and ZTDUMMY Stopped"
+		fi
+}
+
+check_fop() {
+#check to see if FOP is running
+	pid_length=`pidof -x op_server.pl|awk '{print length($0)}'`
+	if [ "$pid_length" == "0" -a "$pid_length" != "" ]
+		then
+				killall -9 safe_opserver
+				echo
+				echo "-----------------------------------------------------"
+				echo "The FOP's server (op_server.pl) could not start!"
+				echo "Please correct this problem"
+				echo "-----------------------------------------------------"
+				exit 0
+		fi
+}
+
+restart_fop() {
+
+				killall -9 safe_opserver
+				sleep 2
+				killall -9 op_server.pl
+				sleep 3
+				su - asterisk -c "cd $AMPWEBROOT/public/panel && $AMPWEBROOT/public/panel/safe_opserver &"
+				sleep 1
+				check_fop
+				echo "FOP Server Started"
+
+}
+
+run_fop() {
+# check to see if FOP is running
+echo
+echo "STARTING FOP SERVER"
+pid_length=`pidof -x op_server.pl|awk '{print length($0)}'`
+	if [ "$pid_length" != "0" -a "$pid_length" != "" ]
+		then
+			echo "FOP server is already running"
+		else
+			su - asterisk -c "cd $AMPWEBROOT/public/panel && $AMPWEBROOT/public/panel/safe_opserver &"
+			sleep 1
+			check_fop
+			echo "FOP Server Started"
+		fi
+}
+
+stop_fop() {
+	echo
+	echo "STOPPING FOP SERVER"
+	pid_length=`pidof -x op_server.pl|awk '{print length($0)}'`
+		if [ "$pid_length" != "0" -a "$pid_length" != "" ]
+			then
+				killall -9 safe_opserver
+				sleep 2
+				killall -9 op_server.pl
+				echo "FOP Server Stopped"
+			fi
+}
+
+kill_amp() {
+	echo
+	echo "KILLING AMP PROCESSES"
+	killall -9 safe_asterisk
+	sleep 2
+	killall -9 asterisk
+	sleep 2
+	killall -9 madplay
+	sleep 2
+	killall -9 safe_opserver
+	sleep 2
+	killall -9 op_server.pl
+}
+
+case "$1" in
+	start)
+		chown_asterisk
+		run_asterisk
+		run_fop
+	;;
+	asterisk)
+		run_onlyasterisk
+	;;
+	stop)
+		stop_asterisk
+		stop_fop
+	;;
+	chown)
+		chown_asterisk
+	;;
+	kill)
+		kill_amp
+	;;
+	fop)
+		restart_fop
+	;;
+	*)
+		echo "------------- Voiper PBX SpheraIT --------------"
+		echo "Usage: voiper start|stop|kill|chown|fop|asterisk"
+		echo
+		echo "start: Starts Asterisk and Flash Operator Panel server"
+		echo "stop: Gracefully stops Asterisk and the FOP server"
+		echo "kill: Kills Asterisk and the FOP server"
+		echo "chown: Sets appropriate permissions on files"
+		echo "fop: Kill and Restart FlashOperatorPanel FOP"
+		echo "asterisk: Run only Asterisk"
+		echo
+		exit 1
+	;;
+esac
